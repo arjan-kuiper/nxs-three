@@ -1,10 +1,132 @@
 export class Tunstall {
     private wordSize: number;
     private lookupSize: number;
+    private probabilities: Uint8Array;
+    private index: Uint32Array;
+    private lenghts: Uint32Array;
+    private tables: Uint8Array
 
     constructor(wordSize?: number, lookupSize?: number) {
         this.wordSize = wordSize ? wordSize : 8;
         this.lookupSize = lookupSize ? lookupSize : 8;
+        
+        this.probabilities = new Uint8Array(0);
+        this.index = new Uint32Array(0);
+        this.lenghts = new Uint32Array(0);
+        this.tables = new Uint8Array(0);
+    }
+
+    public decompress(stream: Stream): Uint8Array {
+        let nSymbols = stream.readUChar();
+        this.probabilities = stream.readArray(nSymbols * 2);
+        this.createDecodingTables();
+        let size = stream.readInt();
+        let data = new Uint8Array(size);
+        let compressedSize = stream.readInt();
+        let compressedData = stream.readArray(compressedSize);
+        if (size) {
+            this._decompress(compressedData, compressedSize, data, size);
+        }
+        return data;
+    }
+
+    public _decompress(input: Uint8Array, inputSize: number, output: Uint8Array, outputSize: number) {
+        let inputPos = 0;
+        let outputPos = 0;
+        if (this.probabilities.length == 2) {
+            let symbol = this.probabilities[0];
+            for (let i = 0; i < outputSize; i++) {
+                output[i] = symbol;
+            }
+            return;
+        }
+
+        while (inputPos < inputSize - 1) {
+            let symbol = input[inputPos++];
+            let start = this.index[symbol];
+            let end = start + this.lenghts[symbol];
+            for (let i = start; i < end; i++) {
+                output[outputPos++] = this.tables[i];
+            }
+        }
+
+        let symbol = input[inputPos];
+        let start = this.index[symbol];
+        let end = start + outputSize - outputPos;
+        let length = outputSize - outputPos;
+        for (let i = start; i < end; i++) {
+            output[outputPos++] = this.tables[i];
+        }
+        return output;
+    }
+
+    public createDecodingTables(): void {
+        let nSymbols = this.probabilities?.length / 2;
+        if (nSymbols <= 1) return;
+
+        let queues = [];
+        let buffer = [];
+
+        for (let i = 0; i < nSymbols; i++) {
+            let symbol = this.probabilities[i * 2];
+            let s = [(this.probabilities[i * 2 + 1]) << 8, buffer.length, 1];
+            queues[i] = [s];
+            buffer.push(symbol);
+        }
+        let dictionarySize = 1 << this.wordSize;
+        let nWords = nSymbols;
+        let tableLength = nSymbols;
+
+        while (nWords < dictionarySize - nSymbols + 1) {
+            let best = 0;
+            let maxProb = 0;
+            for (let i = 0; i < nSymbols; i++) {
+                let p = queues[i][0][0];
+                if (p > maxProb) {
+                    best = i;
+                    maxProb = p;
+                }
+            }
+            let symbol = queues[best][0];
+            let pos: number = buffer.length;
+
+            for (let i = 0; i < nSymbols; i++) {
+                let sym = this.probabilities[i * 2];
+                let prob = this.probabilities[i * 2 + 1] << 8;
+                let s = [((prob * symbol[0]) >>> 16), pos, symbol[2] + 1];
+
+                for (let k = 0; k < symbol[2]; k++) {
+                    buffer[pos + k] = buffer[symbol[1] + k];
+                }
+
+                pos += symbol[2];
+                buffer[pos++] = sym;
+                queues[i].push(s);
+            }
+            tableLength += (nSymbols - 1) * (symbol[2] + 1) + 1;
+            nWords += nSymbols - 1;
+            queues[best].shift();
+        }
+
+        this.index = new Uint32Array(nWords);
+        this.lenghts = new Uint32Array(nWords);
+        this.tables = new Uint8Array(tableLength);
+        let word = 0;
+        let pos = 0;
+        for (let i = 0; i < queues.length; i++) {
+            let queue = queues[i];
+            for (let k = 0; k < queue.length; k++) {
+                let s = queue[k];
+                this.index[word] = pos;
+                this.lenghts[word] = s[2];
+                word++;
+
+                for (let j = 0; j < s[2]; j++) {
+                    this.tables[pos + j] = buffer[s[1] + j];
+                }
+                pos += s[2];
+            }
+        }
     }
 }
 
