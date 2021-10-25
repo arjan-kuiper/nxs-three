@@ -1,3 +1,52 @@
+export class ZPoint {
+    private lo: number;
+    private hi: number;
+    
+    constructor(h: number, l: number) {
+        this.lo = l;
+        this.hi = h;
+    }
+
+    public copy(z: ZPoint): void {
+        this.lo = z.lo;
+        this.hi = z.hi;
+    }
+
+    public setBit(d: number): void {
+        if (d < 32) {
+            this.lo = (this.lo | (1 << d)) >>> 0;
+        } else {
+            this.hi = (this.hi | (1 << (d - 32))) >>> 0;
+        }
+    }
+
+    public toPoint(min: any, step: any, buffer: any, pos: any): void {
+        let x = this.morton3(this.lo, this.hi >>> 1);
+        let y = this.morton3(this.lo >>> 1, this.hi >>> 2);
+        let z = this.morton3((this.lo >>> 2 | (this.hi & 0x1) << 30) >>> 0, this.hi >>> 3);
+    
+        buffer[pos + 0] = (x + min[0]) * step;
+        buffer[pos + 1] = (y + min[1]) * step;
+        buffer[pos + 2] = (z + min[2]) * step;
+    }
+
+    public morton3(lo: number, hi: number): number {
+        lo = (lo                 & 0x49249249) >>> 0;
+        lo = ((lo | (lo >>> 2 )) & 0xc30c30c3) >>> 0;
+        lo = ((lo | (lo >>> 4 )) & 0x0f00f00f) >>> 0;
+        lo = ((lo | (lo >>> 8 )) & 0xff0000ff) >>> 0;
+        lo = ((lo | (lo >>> 16)) & 0x0000ffff) >>> 0;
+
+        hi = ( hi                & 0x49249249) >>> 0;
+        hi = ((hi | (hi >> 2 ))  & 0xc30c30c3) >>> 0;
+        hi = ((hi | (hi >> 4 ))  & 0x0f00f00f) >>> 0;
+        hi = ((hi | (hi >> 8 ))  & 0xff0000ff) >>> 0;
+        hi = ((hi | (hi >> 16))  & 0x0000ffff) >>> 0;
+
+        return ((hi << 11) | lo) >>> 0;
+    }
+}
+
 export class Tunstall {
     private wordSize: number;
     private lookupSize: number;
