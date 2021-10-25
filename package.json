@@ -1,0 +1,22 @@
+{
+  "name": "nxs-three",
+  "version": "1.0.0",
+  "description": "Three.js library for visualization of batched multiresolution meshes created by Nexus",
+  "main": "build/index.js",
+  "types": "build/index.d.ts",
+  "scripts": {
+    "prepublish": "npm run build",
+    "build": "tsc",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "Arjan Kuiper & Original Nexus contributors",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/three": "^0.133.1",
+    "typescript": "^4.4.4"
+  },
+  "dependencies": {
+    "three": "^0.133.1"
+  }
+}
